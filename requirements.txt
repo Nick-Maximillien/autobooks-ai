@@ -28,7 +28,7 @@ Pillow==10.3.0
 certifi==2024.6.2
 numpy==1.26.4
 scipy==1.11.3
-scikit-image==0.21.1
+scikit-image==0.25.2
 opencv-python-headless==4.8.1.78
 
 torch==2.1.0

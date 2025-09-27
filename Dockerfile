@@ -9,13 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libgl1 libglib2.0-0 ffmpeg tesseract-ocr poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies in one step for layer caching
+# Copy requirements
 COPY requirements.txt .
-RUN pip install --no-cache-dir \
-    torch==2.1.0 \
-    torchvision==0.16.0 \
-    torchaudio==2.1.0 \
-    -r requirements.txt
+
+# Upgrade pip and install all Python dependencies in one layer
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copy vendored libraries and weights (rarely change, cached)
 COPY easyocr ./easyocr
