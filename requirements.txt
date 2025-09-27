@@ -26,3 +26,7 @@ python-dotenv==1.0.1
 # --- Inference ---
 Pillow==10.3.0
 certifi==2024.6.2
+
+torch==2.1.0+cpu
+torchvision==0.16.0+cpu
+torchaudio==2.1.0+cpu
