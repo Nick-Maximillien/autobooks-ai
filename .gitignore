@@ -1,0 +1,41 @@
+# Ignore Python cache and compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Ignore virtual environment directories
+venv/
+.venv/
+env/
+ENV/
+
+# Ignore IDE/editor settings
+.vscode/
+.idea/
+*.swp
+
+# Ignore environment files
+*.env
+.env.*
+
+# Ignore logs
+*.log
+
+# Ignore database files
+*.db
+*.sqlite3
+
+# Ignore FastAPI-specific runtime files
+*.pid
+
+# Ignore weights folder at project root
+
+# Ignore build and dist artifacts
+build/
+dist/
+*.egg-info/
+
+# Ignore pytest cache
+.pytest_cache/

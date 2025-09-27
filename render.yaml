@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: autobooks-ai
+    env: docker
+    plan: free
+    autoDeploy: true
+    region: oregon # change if needed
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://autobooks-frontend.vercel.app,http://localhost:3000
+      - key: DJANGO_API
+        value: https://autobooks-backend.onrender.com
+      - key: NLP_SERVER
+        value: http://127.0.0.1:8002/generate # update if NLP is deployed
+      - key: EASYOCR_WEIGHTS
+        value: /app/weights
