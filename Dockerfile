@@ -1,25 +1,33 @@
+# Use official slim Python image
 FROM python:3.11-slim
 
+# Set working directory
 WORKDIR /app
 
-# Install system deps
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libgl1 libglib2.0-0 ffmpeg tesseract-ocr poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps (cached if requirements.txt doesn’t change)
+# Copy and install Python dependencies first (Docker layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy stable vendored libs + weights first
+# Copy vendored libraries and weights (rarely change, cached)
 COPY easyocr ./easyocr
 COPY weights ./weights
 
-# Copy the rest of your app
+# Copy the rest of the application code
 COPY . .
 
-# Make sure logs directory exists (so FileHandler works)
+# Ensure logs directory exists (for FileHandler)
 RUN mkdir -p /app/logs
 
+# Set environment variable so Python can find app module
+ENV PYTHONPATH=/app
+
+# Expose port
 EXPOSE 8001
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+
+# Run Uvicorn pointing to app.main
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
