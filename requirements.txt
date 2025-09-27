@@ -1,45 +1,52 @@
-# --- FastAPI Core ---
-fastapi==0.110.2
-uvicorn[standard]==0.29.0
+# Use official slim Python image
+FROM python:3.10-slim
 
-# --- File Uploads & CORS ---
-python-multipart==0.0.9
-aiofiles==23.2.1
-requests==2.32.2
-httpx==0.27.0
+# Set working directory
+WORKDIR /app
 
-# --- Auth & Security ---
-python-jose[cryptography]==3.3.0
+# Install system dependencies needed for wheels and OCR
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gfortran \
+    libatlas-base-dev \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    ffmpeg \
+    tesseract-ocr \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-# --- Task Queue ---
-celery==5.3.6
-redis==5.0.3
+# Copy requirements
+COPY requirements.txt .
 
-# --- Cloud + Twilio ---
-twilio==9.0.4
-cloudinary==1.38.0
+# Upgrade pip and install wheel-friendly packages first
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir \
+        numpy==1.26.4 \
+        scipy==1.11.4 \
+        scikit-image==0.25.2 \
+        torch==2.1.0 \
+        torchvision==0.16.0 \
+        torchaudio==2.1.0 \
+    && pip install --no-cache-dir -r requirements.txt
 
-# --- AI Insight & Env ---
-openai==1.30.3
-python-dotenv==1.0.1
+# Copy vendored libraries and weights (rarely change, cached)
+COPY easyocr ./easyocr
+COPY weights ./weights
 
-# --- Inference ---
-Pillow==10.3.0
-certifi==2024.6.2
-numpy==1.26.4
-scipy>=1.11.4
-opencv-python-headless<=4.5.4.6
-scikit-image>=0.25.2
+# Copy the rest of the application code
+COPY . .
 
-# --- Torch / Deep Learning ---
-torch==2.1.0
-torchvision==0.16.0
-torchaudio==2.1.0
+# Ensure logs directory exists (for FileHandler)
+RUN mkdir -p /app/logs
 
-# --- EasyOCR Dependencies ---
-easyocr==1.6.2
-python-bidi>=0.4.2
-pyclipper>=1.3.0.post2
-shapely>=1.7.1
-pyyaml
-typing-extensions
+# Set PYTHONPATH so Python can find app module
+ENV PYTHONPATH=/app
+
+# Expose port
+EXPOSE 8001
+
+# Run Uvicorn pointing to app.main
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

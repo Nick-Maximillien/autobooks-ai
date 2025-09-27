@@ -4,9 +4,17 @@ FROM python:3.10-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for numpy, OpenCV, EasyOCR, Tesseract, and Poppler
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libgl1 libglib2.0-0 ffmpeg tesseract-ocr poppler-utils \
+    build-essential \
+    gfortran \
+    libatlas-base-dev \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    ffmpeg \
+    tesseract-ocr \
+    poppler-utils \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
