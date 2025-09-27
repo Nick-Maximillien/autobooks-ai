@@ -9,9 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 
-from app.ocr import extract_text
-from app.parse import process_invoice, query_nlp
-from app.utils import decode_token
+from ocr import extract_text
+from parse import process_invoice, query_nlp
+from utils import decode_token
 
 # Setup logging
 logging.basicConfig(

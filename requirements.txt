@@ -24,7 +24,5 @@ openai==1.30.3
 python-dotenv==1.0.1
 
 # --- Inference ---
-ultralytics==8.1.25                  
 Pillow==10.3.0
 certifi==2024.6.2
-numpy==1.26.4
