@@ -4,11 +4,11 @@ FROM python:3.10-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies needed for wheels and OCR
+# Install system dependencies needed for wheels, OCR, and OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gfortran \
-    libatlas-base-dev \
+    libatlas3-base \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     tesseract-ocr \
     poppler-utils \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
