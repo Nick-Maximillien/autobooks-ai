@@ -9,7 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libgl1 libglib2.0-0 ffmpeg tesseract-ocr poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies first (Docker layer caching)
+# Install CPU-only PyTorch before other dependencies
+RUN pip install --no-cache-dir torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0
+
+# Copy and install Python dependencies (cached if requirements.txt doesn't change)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -23,7 +26,7 @@ COPY . .
 # Ensure logs directory exists (for FileHandler)
 RUN mkdir -p /app/logs
 
-# Set environment variable so Python can find app module
+# Set PYTHONPATH so Python can find app module
 ENV PYTHONPATH=/app
 
 # Expose port
