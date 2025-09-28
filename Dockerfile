@@ -8,8 +8,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gfortran \
-    libatlas-base-dev \
-    libgl1-mesa-glx \
+    liblapack-dev \
+    libopenblas-dev \
+    libgl1 \
     libglib2.0-0 \
     ffmpeg \
     tesseract-ocr \
