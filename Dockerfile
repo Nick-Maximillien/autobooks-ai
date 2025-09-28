@@ -7,10 +7,8 @@ WORKDIR /app
 # Install system dependencies for numpy, OpenCV, EasyOCR, Tesseract, and Poppler
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    gfortran \
-    liblapack-dev \
     libopenblas-dev \
-    libgl1 \
+    liblapack-dev \
     libglib2.0-0 \
     ffmpeg \
     tesseract-ocr \
@@ -21,8 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements
 COPY requirements.txt .
 
-# Upgrade pip and install all Python dependencies in one layer
-RUN pip install --upgrade pip \
+# Upgrade pip and install core scientific packages from wheels first
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install --only-binary=:all: numpy==1.26.4 scipy==1.11.4 \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy vendored libraries and weights (rarely change, cached)
