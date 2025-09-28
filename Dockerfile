@@ -24,7 +24,7 @@ RUN pip install --upgrade pip setuptools wheel \
     && pip install --only-binary=:all: numpy==1.26.4 scipy==1.11.4 \
     && pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y bidi || true \
-    && pip install --force-reinstall python-bidi==0.4.2
+    && pip install --force-reinstall python-bidi==0.6.6
 
 # Copy vendored libraries and weights (rarely change, cached)
 COPY easyocr ./easyocr
