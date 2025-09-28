@@ -2,35 +2,44 @@ import logging
 from pathlib import Path
 import sys
 
-
 ROOT = Path(__file__).resolve().parents[1]
-EASYOCR_REPO = ROOT / "easyocr"   
+EASYOCR_REPO = ROOT / "easyocr"
 sys.path.insert(0, str(EASYOCR_REPO))
 
 import easyocr
 
-print("EasyOCR loaded from:", easyocr.__file__)
+print("EasyOCR available from:", easyocr.__file__)
 
 WEIGHTS_DIR = ROOT / "weights"
 
-reader = easyocr.Reader(
-    ['en'],
-    gpu=False,
-    model_storage_directory=WEIGHTS_DIR,
-    download_enabled=False,
-    detect_network="craft",
-    recog_network="english_g2",
-    detector=True,
-    recognizer=True,
-    verbose=True,
-    cudnn_benchmark=False,
-    quantize=False
-)
+# Lazy initialization
+_reader = None
+
+def get_reader():
+    global _reader
+    if _reader is None:
+        logging.info("Initializing EasyOCR reader...")
+        _reader = easyocr.Reader(
+            ['en'],
+            gpu=False,
+            model_storage_directory=WEIGHTS_DIR,
+            download_enabled=False,
+            detect_network="craft",
+            recog_network="english_g2",
+            detector=True,
+            recognizer=True,
+            verbose=True,
+            cudnn_benchmark=False,
+            quantize=False
+        )
+    return _reader
+
 
 def extract_text(file_path: str):
     try:
         logging.info(f"OCR: starting on {file_path}")
         logging.info(f"OCR using weights dir: {WEIGHTS_DIR}")
+        reader = get_reader()
         results = reader.readtext(file_path, detail=1)
         logging.info(f"OCR results: {results}")
         text = "\n".join([r[1] for r in results])
