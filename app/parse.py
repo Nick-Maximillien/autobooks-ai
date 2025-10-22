@@ -3,10 +3,36 @@ import logging
 import re
 import requests
 import os
+import time
+from dotenv import load_dotenv
+from pathlib import Path
 
+# ✅ Load .env
+load_dotenv()
 
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
-# Setup logging
+# ✅ Check Render-mounted secret
+sa_path = Path("/etc/secrets/gcp_sa.json")
+if sa_path.exists():
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(sa_path)
+    GOOGLE_APPLICATION_CREDENTIALS = str(sa_path)
+
+# ✅ Normalize Windows path if running locally
+if GOOGLE_APPLICATION_CREDENTIALS and "\\" in GOOGLE_APPLICATION_CREDENTIALS:
+    GOOGLE_APPLICATION_CREDENTIALS = GOOGLE_APPLICATION_CREDENTIALS.replace("\\", "/")
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS
+
+# ✅ Initialize Vertex AI
+if GCP_PROJECT_ID:
+    try:
+        import vertexai
+        vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
+        print(f"✅ Vertex AI initialized for project {GCP_PROJECT_ID}")
+    except Exception as init_err:
+        print(f"⚠️ Vertex AI init failed: {init_err}")
+# Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -24,110 +50,90 @@ BACKEND_SERVER = os.getenv("BACKEND_SERVER", "http://127.0.0.1:8000/api/document
 
 def parse_with_nlp(text: str) -> dict:
     """
-    Calls NLP server to extract structured document fields
+    Calls Gemini/Vertex first, then NLP server to extract structured document fields
     matching the Django Document model.
     """
-    payload = {
-        "model": "llama3",
-        "prompt": f"""
-        Extract all the following fields from this business document OCR text if available.
-        Financial numbers MUST NOT contain commas. Add .00 if integer to match DecimalField format.
-        Any field related to total, payment, loan amount, equity, amount paid, balance, or total payroll 
-        should be stored in the 'total' field.
-        DO NOT MAKE UP your own document_type. Only this are valid document types: (invoice, receipt, bill, quotation, payroll, delivery_note, credit_note, debit_note, asset_purchase, bank_statement, short_term_borrowing (if period is less than 1 year), long_term_borrowing (if period is longer than 1 year), tax_filing, equity_injection, purchase_order, expense_claim, etc., lowercase). No capital letters allowed in document_type.
-        
-        FIELDS TO EXTRACT:
+    prompt = f"""Extract all the following fields from this business document OCR text if available.
+Financial numbers MUST NOT contain commas. Add .00 if integer to match DecimalField format.
+Any field related to total, payment, loan amount, equity, amount paid, balance, or total payroll 
+should be stored in the 'total' field.
+DO NOT MAKE UP your own document_type. Only these are valid document types: 
+(invoice, receipt, bill, quotation, payroll, delivery_note, credit_note, debit_note, 
+asset_purchase, bank_statement, short_term_borrowing, long_term_borrowing, tax_filing, 
+equity_injection, purchase_order, expense_claim, etc., lowercase).
 
-        # common
-        - business_name
-        - document_type (invoice, receipt, bill, quotation, payroll, delivery_note, credit_note, debit_note, asset_purchase, bank_statement, short_term_borrowing (if period is less than 1 year), long_term_borrowing (if period is longer than 1 year), tax_filing, equity_injection, purchase_order, expense_claim, etc., lowercase). No capital letters allowed in document_type.
-        - invoice_number
-        - vendor
-        - date
-        - total 
-        - raw_text (verbatim OCR text)
-        - items (JSON list)
+Document OCR text:
+{text}"""
 
-        # Invoice 
-        - invoice_number      
-        - customer
-        - tax
+    # --- Gemini / Vertex ---
+    try:
+        from vertexai import init as vertex_init
+        from vertexai.generative_models import GenerativeModel, GenerationConfig, SafetySetting
 
-        # Receipt
-        - receipt_number
-        - payment_from
-        - payment_method
-        - balance
+        vertex_init(project=GCP_PROJECT_ID, location="us-central1")
+        gemini_model = GenerativeModel("gemini-2.5-flash")
 
-        # Bill
-        - bill_number
-        - billed_to
+        # ✅ Valid safety categories only
+        safety_settings = [
+            SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_LOW_AND_ABOVE"),
+            SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_LOW_AND_ABOVE"),
+            SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_LOW_AND_ABOVE"),
+            SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_LOW_AND_ABOVE"),
+        ]
 
-        # Quotation
-        - quotation_number
-        - issued_to
+        gen_cfg = GenerationConfig(temperature=0.2, top_p=0.9, max_output_tokens=1024)
 
-        # Payroll
-        - payroll_month
-        - employee_salaries (list of objects with name and salary)
+        start_time = time.time()
+        response = gemini_model.generate_content(
+            [prompt],
+            generation_config=gen_cfg,
+            safety_settings=safety_settings
+        )
+        latency = time.time() - start_time
 
-        # Delivery Note
-        - delivery_note_number
-        - delivery_date
-        - delivered_to
-        - received_by
+        gemini_text = getattr(response, "text", "").strip()
+        if gemini_text:
+            logger.info(f"✅ Gemini insight generated in {latency:.2f}s")
+            match = re.search(r"\{.*\}", gemini_text, re.DOTALL)
+            if match:
+                try:
+                    structured = json.loads(match.group())
+                    logger.info(f"Structured data from Gemini: {structured}")
+                    return structured
+                except json.JSONDecodeError:
+                    logger.warning("Could not decode JSON from Gemini output.")
+    except Exception as e:
+        logger.warning(f"❌ Gemini failed: {e}")
 
-        # Credit / Debit Notes
-        - credit_note_number
-        - debit_note_number
+    # --- NLP Server Fallback ---
+    try:
+        payload = {
+            "model": "llama3",
+            "prompt": prompt,
+        }
+        response = requests.post(NLP_SERVER, json=payload, timeout=3000, stream=True)
+        response.raise_for_status()
+        result = response.json()
+        llm_text = result.get("response", "").strip()
 
-        # Asset Purchase
-        - asset_value
-        - asset_description
+        match = re.search(r"\{.*\}", llm_text, re.DOTALL)
+        if match:
+            try:
+                structured = json.loads(match.group())
+                logger.info(f"Structured data from NLP server: {structured}")
+                return structured
+            except json.JSONDecodeError:
+                logger.warning("Could not decode JSON from NLP output.")
+                return {"raw_text": llm_text, "document_type": "unknown"}
 
-        # Loans
-        - loan_lender
-        - loan_terms
+        return {"raw_text": llm_text, "document_type": "unknown"}
 
-        # Equity Injection
-        - equity_investor
-        - equity_terms
-
-        Respond in **valid JSON only**.
-        Remove all commas in numbers. Only plain numbers are allowed. Add .00 to numbers to match DecimalField database.
-        Document OCR text:
-        {text}
-        """,
-    }
-
-    response = requests.post(NLP_SERVER, json=payload, timeout=3000, stream=True)
-    response.raise_for_status()
-    result = response.json()
-
-    llm_text = result.get("response", "").strip()
-    logger.info(f"LLM raw result: {llm_text}")
-
-    match = re.search(r"\{.*\}", llm_text, re.DOTALL)
-    if match:
-        try:
-            structured = json.loads(match.group())
-            logger.info(f"Structured data: {structured}")
-            return structured
-        except json.JSONDecodeError:
-            logger.warning("Could not decode JSON from NLP output.")
-            return {"raw_text": llm_text, "document_type": "unknown"}
-
-    return {"raw_text": llm_text, "document_type": "unknown"}
+    except Exception as e:
+        logger.error(f"❌ NLP Server failed: {e}")
+        return {"raw_text": text, "document_type": "unknown"}
 
 
-def save_to_db(data: dict, raw_text: str, 
-               token: str,
-               identity: dict):
-    """
-    Send structured data to Backend.
-    Missing fields are allowed (null in Django).
-    """
-
+def save_to_db(data: dict, raw_text: str, token: str, identity: dict):
     payload = {
         "business_name": data.get("business_name"),
         "invoice_number": data.get("invoice_number"),
@@ -172,17 +178,12 @@ def save_to_db(data: dict, raw_text: str,
     if not token:
         headers["Authorization"] = f"Bearer {token}"
 
-
     try:
         response = requests.post(BACKEND_SERVER, json=payload, headers=headers, timeout=3050)
         if response.status_code >= 400:
-            logger.error(
-                f"Django rejected document (status {response.status_code}): {response.text}"
-            )
+            logger.error(f"Django rejected document (status {response.status_code}): {response.text}")
         else:
-            logger.info(
-                f"Document saved to backend (status {response.status_code}): {response.text}"
-            )
+            logger.info(f"Document saved to backend (status {response.status_code}): {response.text}")
         response.raise_for_status()
         logger.info("Stored parsed document to Django successfully")
         return response.json()
@@ -191,10 +192,7 @@ def save_to_db(data: dict, raw_text: str,
         raise
 
 
-
-
 def process_invoice(text: str, token: str, identity: dict):
-    """Main entrypoint after OCR extraction"""
     structured_data = parse_with_nlp(text)
     logger.info("Saving to Django ERP...")
     save_to_db(structured_data, text, token, identity)
@@ -203,9 +201,6 @@ def process_invoice(text: str, token: str, identity: dict):
 
 
 def query_nlp(prompt: str, model: str = "llama3") -> str:
-    """
-    Query local Ollama API with prompt, return completion.
-    """
     try:
         payload = {
             "model": model,
@@ -217,8 +212,7 @@ def query_nlp(prompt: str, model: str = "llama3") -> str:
         response.raise_for_status()
         result = response.json()
         llm_text = result.get("response", "").strip()
-
         return llm_text
     except Exception as e:
         logger.error(f"❌ Ollama query failed: {e}")
-        return f"Ollama query failed: {e}" 
+        return f"Ollama query failed: {e}"

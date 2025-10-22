@@ -39,3 +39,6 @@ dist/
 
 # Ignore pytest cache
 .pytest_cache/
+
+
+app/central-accord-475812-g4-6d21ba7b0230.json
