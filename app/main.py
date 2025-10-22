@@ -53,10 +53,16 @@ app.add_middleware(
     expose_headers=["*"],                 # Optional: expose headers to frontend
 )
 
-
+"""
+env=dev
 BASE_DIR = Path(__file__).resolve().parent.parent
 RECEIPTS_DIR = BASE_DIR / "receipts"
 RECEIPTS_DIR.mkdir(exist_ok=True)
+"""
+# Use a writeable folder on Render
+RECEIPTS_DIR = Path("/tmp/receipts")
+RECEIPTS_DIR.mkdir(exist_ok=True, parents=True)
+logger.info(f"✅ Using receipts folder: {RECEIPTS_DIR}")
 
 
 
@@ -210,7 +216,7 @@ async def upload_receipt(
         logger.info(f"Authenticated user: {identity}")
 
         # Save file
-        file_path = f"receipts/{receipt.filename}"
+        file_path = RECEIPTS_DIR / receipt.filename
         with open(file_path, "wb") as f:
             f.write(await receipt.read())
         logger.info(f"Saved receipt to: {file_path}")
