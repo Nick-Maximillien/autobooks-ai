@@ -45,7 +45,10 @@ logger = logging.getLogger(__name__)
 
 # External Servers
 NLP_SERVER = os.getenv("NLP_SERVER", "http://127.0.0.1:8002/generate")
-BACKEND_SERVER = os.getenv("BACKEND_SERVER", "http://127.0.0.1:8000/api/documents/")
+BACKEND_SERVER = os.getenv("BACKEND_SERVER")
+if not BACKEND_SERVER:
+    raise ValueError("BACKEND_SERVER environment variable is missing")
+
 
 
 def parse_with_nlp(text: str) -> dict:
