@@ -33,19 +33,32 @@ logger = logging.getLogger(__name__)
 # FastAPI init
 app = FastAPI()
 
-# Allow frontend origin
-ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")]
+
+# Get allowed origins safely
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS.split(",") if origin]
+
+if not ALLOWED_ORIGINS:
+    logger.warning("⚠️ ALLOWED_ORIGINS is empty! No frontend will be able to access the backend.")
+else:
+    logger.info(f"✅ CORS allowed origins: {ALLOWED_ORIGINS}")
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,       # Allow only specified origins
+    allow_credentials=True,              # Required if frontend sends cookies or auth headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly allow methods
+    allow_headers=["*"],                  # Allow all headers
+    expose_headers=["*"],                 # Optional: expose headers to frontend
 )
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RECEIPTS_DIR = BASE_DIR / "receipts"
 RECEIPTS_DIR.mkdir(exist_ok=True)
+
+
 
 Backend_API = os.getenv("DJANGO_API", "http://localhost:8000")
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
